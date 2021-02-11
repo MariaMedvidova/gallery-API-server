@@ -10,6 +10,7 @@ const schema_gallery_list = require("../schemas/gallery_list.json")
 var Validator = require('jsonschema').Validator;
 var v = new Validator();
 
+//check if header contain token
 var checkToken = (req, res, next) => {
     const header = req.headers['authorization'];
 
@@ -27,8 +28,11 @@ var checkToken = (req, res, next) => {
     }
 }
 
+//check if directory form request exists
 function checkUploadPath(req, res, next) {
-    var dir = `./data/galleries/${req.params.path}/`;
+    const path = encodeURIComponent(req.params.path)
+    var dir = `./data/galleries/${path}/`;
+
     if (!fs.existsSync(dir)) {
         return res.status(404).json({
             "code": 404,
@@ -42,13 +46,13 @@ function checkUploadPath(req, res, next) {
 const storage = multer.diskStorage({
     //set path to gallery folder form request
     destination: function (req, file, cb) {
-        var dir = `./data/galleries/${req.params.path}/`;
+        var dir = `./data/galleries/${encodeURIComponent(req.params.path)}/`;
         cb(null, dir);
     },
     filename: function (req, file, cb) {
         //replace whitespace with underscore
         let decodeFileName = req.userId + file.originalname.replace(/\s/g, '_')
-        var imgPath = `./data/galleries/${req.params.path}/${decodeFileName}`;
+        var imgPath = `./data/galleries/${encodeURIComponent(req.params.path)}/${decodeFileName}`;
         if (!fs.existsSync(imgPath)) {
             return cb(null, decodeFileName)
         }
@@ -87,18 +91,16 @@ router.get('/', (req, res) => {
                 "path": data.galleries[i].gallery.path,
             })
 
-            //let imageObj = JSON.stringify(data.galleries[i].images[0]);
-
             //if gallery contain picture
             if (Object.keys(data.galleries[i].images).length > 0) {
                 let img = {}
                 img = data.galleries[i].images[0]
-                //gallery.image = JSON.parse(imageObj)
                 gallery.image = img
             }
             returnData.galleries.push(gallery);
         }
 
+        //validate data with schema
         var result = v.validate(returnData, schema_gallery_list)
         if (!result.valid) {
             return res.status(500).json({
@@ -218,23 +220,22 @@ router.post('/', (req, res) => {
     }
 })
 
-
 router.post('/:path', checkToken, checkUploadPath, async (req, res) => {
     try {
         const accessToken = req.token;
 
-        // Get user id of the Facebook user associated with the access token.
+        // Get data of the Facebook user associated with the access token.
         const data = await axios.get(`https://graph.facebook.com/me?access_token=${encodeURIComponent(accessToken)}`).
             then(res => res.data);
 
         req.userId = data.id;
-        console.log("ID je> " + data.id)
 
     } catch (err) {
-        console.log(err);
+        //console.log(err);
         return res.status(500).json({ message: err.response.data || err.message });
     }
 
+    //upload file
     let upload = multer({ storage: storage, fileFilter: fileFilter }).single('file')
 
     upload(req, res, function (err) {
@@ -252,7 +253,7 @@ router.post('/:path', checkToken, checkUploadPath, async (req, res) => {
         }
 
         //creating new IMG record to JSON file
-        const dir = req.params.path
+        const dir = encodeURIComponent(req.params.path)
         const file = req.file;
         var dotIndex = file.filename.lastIndexOf(".");
         let date = new Date();
@@ -324,7 +325,6 @@ router.delete('/:dir/:img?', (req, res) => {
 
                     //find position of image and if exist delete
                     const index = data.galleries[i].images.findIndex(x => x.path === img);
-                    console.log("index je: " + index)
                     if (index !== -1) {
                         data.galleries[i].images.splice(index, 1);
                         fs.writeFileSync('./data/galeries.json', JSON.stringify(data))
