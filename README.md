@@ -35,6 +35,9 @@ To get the Node server running locally:
     
  * **`/images/{w}x{h}/{path}`** 
     `GET` - Generating a preview image according to the specified path, width and height (if one option is zero, it is calculated according to the other by maintaining the aspect ratio, if both are zero, the image will be displayed in original size)
+ 
+ * **`/auth/facebook`**
+    `GET` - Link for Token generation is displayed.
   
     
 ## Dependencies
