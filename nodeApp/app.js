@@ -28,10 +28,12 @@ app.use((req, res, next) => {
   next();
 })
 
+//set routers
 app.use('/gallery', galleryRouter);
 app.use('/images', imagesRouter);
 app.use('/', authRouter);
 
+//make 404 error for not found
 app.use((req, res, next) => {
   const error = new Error('Not found');
   error.status = 404;

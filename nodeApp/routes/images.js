@@ -9,6 +9,7 @@ const validateImgParams = (params) => {
     return false
 }
 
+//parse width and height form request
 const getValues = (params) => {
     var w = params.substring(0, params.indexOf("x"));
     var h = params.substring(params.indexOf("x") + 1, params.length);
@@ -31,7 +32,7 @@ router.get('/:params/:dir/:img', async (req, res) => {
     }
 
     //check if file exist
-    const path = `./data/galleries/${dir}/${img}`;
+    const path = `./data/galleries/${encodeURIComponent(dir)}/${img}`;
     if (!fs.existsSync(path)) {
         return res.status(404).json({
             "code": 404,
@@ -45,6 +46,7 @@ router.get('/:params/:dir/:img', async (req, res) => {
     //load and resize file
     var data;
 
+    //load IMG and if necessary also resize it
     try {
         if (w == 0 && h == 0) {
             data = await sharp(path)
