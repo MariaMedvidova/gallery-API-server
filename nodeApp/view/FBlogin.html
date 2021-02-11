@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Frontend</title>
+</head>
+
+<body>
+    <div>
+        <p>You are successfully authorized. Your token is:</p>
+        <p id="token"></p>
+
+        <p>Use it in the Authorization header as a Bearer token</p>
+    </div>
+    <script>
+        var hash = document.URL.replace('?', '')
+        var query = hash.substring(hash.indexOf("#") + 1);
+        var token = query.split('&');
+
+        document.getElementById("token").innerHTML = token[0].split('=')[1]
+    </script>
+</body>
+
+</html>
