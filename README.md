@@ -24,19 +24,19 @@ To get the Node server running locally:
 
   `GET` | `POST` | `DELETE`
 
-  * **`/gallery`** 
-   `GET` - to display a JSON object of all galleries. Response contains an array of gallery objects, where path is the path directly usable for retrieving gallery content and name is the name of the gallery. If the gallery contains an image, then it is in the object as an image
+  * **`/gallery`**  
+   `GET` - to display a JSON object of all galleries. Response contains an array of gallery objects, where path is the path directly usable for retrieving gallery content and name is the name of the gallery. If the gallery contains an image, then it is in the object as an image  
    `POST` - Creating a new gallery. Gallery name cannot contain /. The gallery name is sent in body request in JSON format
   
-  * **`/gallery/{path}`** 
-    `GET` - Returns a list of images in the gallery and information about the gallery in JSON format
-    `POST` - Upload an image to the selected gallery. It is protected by FB authentication. If the user uploads an image with the same name, the current date and time are added to the image name right before the extension. If the image name contains white spaces, they are changed to underscore.
+  * **`/gallery/{path}`**  
+    `GET` - Returns a list of images in the gallery and information about the gallery in JSON format  
+    `POST` - Upload an image to the selected gallery. It is protected by FB authentication. If the user uploads an image with the same name, the current date and time are added to the image name right before the extension. If the image name contains white spaces, they are changed to underscore.  
     `DELETE` - Delete the selected gallery or image according to the specified path
     
- * **`/images/{w}x{h}/{path}`** 
+ * **`/images/{w}x{h}/{path}`**   
     `GET` - Generating a preview image according to the specified path, width and height (if one option is zero, it is calculated according to the other by maintaining the aspect ratio, if both are zero, the image will be displayed in original size)
  
- * **`/auth/facebook`**
+ * **`/auth/facebook`**  
     `GET` - Link for Token generation is displayed.
   
     
