@@ -25,8 +25,8 @@ router.get('/:params/:dir/:img', async (req, res) => {
 
     //validate width and height of required picture
     if (!validateImgParams(params)) {
-        return res.status(500).json({
-            "code": 500,
+        return res.status(403).json({
+            "code": 403,
             "message": "Incorrectly entered required image dimensions"
         })
     }

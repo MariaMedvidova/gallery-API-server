@@ -240,8 +240,8 @@ router.post('/:path', checkToken, checkUploadPath, async (req, res) => {
 
     upload(req, res, function (err) {
         if (req.INCORRECT_FORMAT) {
-            return res.status(400).json({
-                "code": 400,
+            return res.status(422).json({
+                "code": 422,
                 "message": "File Format is incorrect"
             })
         }
