@@ -302,5 +302,5 @@ Photo upload request must contain in the header Bearer token. Once user has sent
 
 >The default application ID for FB belongs to me, as the provided ID from "Programator.sk" did not support logging in. It shows the error shown in the picture below.    
 
-
+![error_app_programator](https://user-images.githubusercontent.com/58369175/107999797-9fdba580-6fe8-11eb-91b6-81b50dcefbb5.PNG)
 
