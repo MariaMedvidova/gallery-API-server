@@ -300,4 +300,7 @@ The photo upload request are authenticated using the `Authorization` header as a
 
 Photo upload request must contain in the header Bearer token. Once user has sent a request with token, facebook graph api is used to get the user. Photos are saved to disk where is used the obtained ID in the file name. I used **Postman** for testing purposes.
 
->The default application ID for FB belongs to me, as the provided ID from "Programator.sk" did not support logging in
+>The default application ID for FB belongs to me, as the provided ID from "Programator.sk" did not support logging in. It shows the error shown in the picture below.    
+
+
+
