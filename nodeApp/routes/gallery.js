@@ -3,12 +3,23 @@ const fs = require('fs');
 var router = express.Router();
 var multer = require('multer')
 const axios = require('axios');
+const path_module = require('path');
+
 const schema_gallery_detail = require("../schemas/gallery_detail.json")
 const schema_gallery_insert = require("../schemas/gallery_insert.json")
 const schema_gallery_list = require("../schemas/gallery_list.json")
 
 var Validator = require('jsonschema').Validator;
 var v = new Validator();
+
+//to send a response
+var sendResponse = (res, code, message) => {
+    var response = {
+        "code": code,
+        "message": message
+    }
+    return res.status(parseInt(code)).json(response);
+}
 
 //check if header contain token
 var checkToken = (req, res, next) => {
@@ -20,24 +31,17 @@ var checkToken = (req, res, next) => {
         req.token = token;
         next()
     } else {
-        return res.status(403).json({
-            "code": 403,
-            "message": "You must be authorized to access. Click on the link below for authorization",
-            "link": "http://localhost:7100/auth/facebook"
-        })
+        sendResponse(res, 401, "You must be authorized to access. Click on the link below for authorization. http://localhost:7100/auth/facebook")
     }
 }
 
 //check if directory form request exists
-function checkUploadPath(req, res, next) {
+var checkGallery = (req, res, next) => {
     const path = encodeURIComponent(req.params.path)
     var dir = `./data/galleries/${path}/`;
 
     if (!fs.existsSync(dir)) {
-        return res.status(404).json({
-            "code": 404,
-            "message": "Upload gallery not found"
-        })
+        return sendResponse(res, 404, "Gallery not found")
     }
     next()
 }
@@ -77,150 +81,191 @@ const fileFilter = (req, file, cb) => {
     }
 }
 
-router.get('/', (req, res) => {
-    try {
-        let rawdata = fs.readFileSync('./data/galeries.json');
-        let data = JSON.parse(rawdata);
-        let returnData = {};
-        returnData.galleries = [];
-
-        //build new json to return
-        for (i in data.galleries) {
-            let gallery = ({
-                "name": data.galleries[i].gallery.name,
-                "path": data.galleries[i].gallery.path,
-            })
-
-            //if gallery contain picture
-            if (Object.keys(data.galleries[i].images).length > 0) {
-                let img = {}
-                img = data.galleries[i].images[0]
-                gallery.image = img
-            }
-            returnData.galleries.push(gallery);
-        }
-
-        //validate data with schema
-        var result = v.validate(returnData, schema_gallery_list)
-        if (!result.valid) {
-            return res.status(500).json({
-                "code": 500,
-                "message": result.errors[0].name
-            })
-        }
-        return res.status(200).json(returnData)
-    }
-    catch (e) {
-        return res.status(500).json({
-            "code": 500,
-            "message": e.message
+//to return JSON gallery object
+const getGalleryData = async (dir) => {
+    return new Promise((resolve, reject) => {
+        let gallery = ({
+            "name": decodeURI(dir),
+            "path": dir
         })
-    }
+        getImagesData(dir, true)
+            .then((img) => {
+                if (img) {
+                    gallery.image = img;
+                }
+                resolve(gallery);
+            })
+            .catch((err) => {
+                reject(err)
+            })
+    })
+}
+
+const getImagesData = async (dir, onlyOne) => {
+    return new Promise((resolve, reject) => {
+        //check if gallery contain picture
+        fs.promises.readdir('./data/galleries/' + dir)
+            .then((files) => {
+                //if gallery contain picture and we need only first one
+                if (files.length > 0 && onlyOne) {
+                    var img = {};
+                    const pathName = path_module.join('./data/galleries/' + dir, files[0])
+                    fs.promises.stat(pathName)
+                        .then((stats) => {
+                            var dotIndex = files[0].lastIndexOf(".");
+                            //build new JSON img object
+                            var img = {
+                                "path": files[0],
+                                "fullpath": dir + "/" + files[0],
+                                "name": decodeURI(files[0].substring(0, dotIndex)),
+                                "modified": stats.mtime.toString()
+                            }
+                            resolve(img);
+                        })
+                }
+                //if gallery contain picture and we need all picture
+                else if (files.length > 0) {
+                    let promises = [];
+
+                    //push all promises to array
+                    for (let file of files) {
+                        const pathName = path_module.join('./data/galleries/' + dir, file)
+
+                        promises.push(fs.promises.stat(pathName))
+                    }
+
+                    //to resolve all promises in array and then return
+                    Promise.all(promises)
+                        .then((stats) => {
+                            //build new json to return
+                            var returnData = [];
+                            var i = 0
+                            for (let stat of stats) {
+                                var dotIndex = files[i].lastIndexOf(".");
+                                //build new JSON img object
+                                var img = {
+                                    "path": files[i],
+                                    "fullpath": dir + "/" + files[i],
+                                    "name": decodeURI(files[i].substring(0, dotIndex)),
+                                    "modified": stat.mtime.toString()
+                                }
+                                i++;
+                                //console.log(img)
+                                returnData.push(img)
+                            }
+
+                            resolve(returnData)
+                        })
+                }
+                //if gallery does not cointain picture
+                else {
+                    resolve();
+                }
+            })
+            .catch((err) => {
+                reject(err)
+            })
+    })
+}
+
+router.get('/', async (req, res) => {
+    //read all directories
+    fs.promises.readdir('./data/galleries/')
+        .then((dirs) => {
+            let promises = [];
+
+            //push all promises to array
+            for (let dir of dirs) {
+                promises.push(getGalleryData(dir))
+            }
+
+            //to resolve all promises in array and then return
+            Promise.all(promises)
+                .then((galleries) => {
+
+                    //build new json to return
+                    var returnData = {};
+                    returnData.galleries = galleries;
+
+                    console.log(returnData);
+
+                    //validate data with schema
+                    var result = v.validate(returnData, schema_gallery_list)
+                    if (!result.valid) {
+                        return sendResponse(res, 500, result.errors)
+                    }
+                    return res.status(200).json(returnData)
+                })
+        })
+        .catch((err) => {
+            return sendResponse(res, 500, err.message)
+        })
 })
 
-router.get('/:path', (req, res) => {
-    try {
-        let rawdata = fs.readFileSync('./data/galeries.json');
-        let data = JSON.parse(rawdata);
-        //encode path name
-        const path = encodeURIComponent(req.params.path);
+router.get('/:path', checkGallery, (req, res) => {
+    const dir = encodeURIComponent(req.params.path)
 
-        //find gallery
-        for (i in data.galleries) {
-            if (data.galleries[i].gallery.path == path) {
-
-                let gallery = {}
-                gallery = data.galleries[i]
-
-                //validate against schema
-                var result = v.validate(gallery, schema_gallery_detail)
-                if (!result.valid) {
-                    return res.status(500).json({
-                        "code": 500,
-                        "message": "Undefined error"
-                    })
-                }
-                return res.status(200).json(gallery)
+    //get data about all images in gallery
+    getImagesData(dir, false)
+        .then((images) => {
+            //creating json
+            const galleryDetail = {
+                "gallery": {
+                    path: dir,
+                    name: dir
+                },
+                "images": []
             }
-        }
+            if (images) galleryDetail.images = images;
 
-        //gallery does not exist
-        return res.status(404).json({
-            "code": 404,
-            "message": "The selected gallery does not exist"
-        })
+            //validate against schema
+            var result = v.validate(galleryDetail, schema_gallery_detail)
+            if (!result.valid) {
+                sendResponse(res, 500, result.errors[0].stack)
+            }
 
-    } catch (e) {
-        return res.status(500).json({
-            "code": 500,
-            "message": e.message
+            return res.status(200).json(galleryDetail)
         })
-    }
+        .catch((err) => {
+            return sendResponse(res, 500, err.message)
+        })
 })
 
 router.post('/', (req, res) => {
-    try {
-        //validate request against schema
-        var result = v.validate(req.body, schema_gallery_insert)
-        if (!result.valid) {
-            //Bad request - inappropriate content according to the scheme
-            return res.status(400).json({
-                "code": 400,
-                "payload": {
-                    "paths": [],
-                    "validator": result.errors[0].name,
-                    "example": null
-                },
-                "name": "INVALID_SCHEMA",
-                "description": "Bad JSON object: " + result.errors[0].stack
-            })
-        }
 
-        const { name } = req.body
-        const path = encodeURIComponent(name)
+    const { name } = req.body
+    const path = encodeURIComponent(name)
+    var dir = `./data/galleries/${path}/`;
 
-        var rawdata = fs.readFileSync('./data/galeries.json', 'utf8');
-        data = JSON.parse(rawdata);
-
-        //check if gallery with the specified name already exists
-        for (i in data.galleries) {
-            if (data.galleries[i].gallery.name == name) {
-                return res.status(409).json({
-                    "code": 409,
-                    "message": "A gallery with the specified name already exists"
-                })
-            }
-        }
-
-        //creating json
-        const galleryDetail = {
-            "gallery": {
-                path: path,
-                name: name
+    //validate request against schema
+    var result = v.validate(req.body, schema_gallery_insert)
+    if (!result.valid) {
+        //Bad request - inappropriate content according to the scheme
+        return res.status(400).json({
+            "code": 400,
+            "payload": {
+                "paths": [],
+                "validator": result.errors[0].name,
+                "example": null
             },
-            "images": []
-        }
-
-        //add galery to the file ./data/galeries.json
-        data.galleries.push(galleryDetail);
-        fs.writeFile('./data/galeries.json', JSON.stringify(data), function (err) {
-            if (err) throw err;
+            "name": "INVALID_SCHEMA",
+            "description": "Bad JSON object: " + result.errors[0].stack
         })
-
-        //make new directory
-        var dir = `./data/galleries/${path}/`;
-        fs.mkdirSync(dir)
-        return res.status(201).json(galleryDetail.gallery)
     }
-    catch (e) {
-        return res.status(500).json({
-            "code": 500,
-            "message": e.message
+    else if (!fs.existsSync(dir)) {
+        //make new directory
+        fs.mkdirSync(dir)
+        return res.status(201).json({
+            "name": name,
+            "path": path
         })
+    }
+    else {
+        return sendResponse(res, 409, "A gallery with the specified name already exists")
     }
 })
 
-router.post('/:path', checkToken, checkUploadPath, async (req, res) => {
+router.post('/:path', checkToken, checkGallery, async (req, res) => {
     try {
         const accessToken = req.token;
 
@@ -231,8 +276,7 @@ router.post('/:path', checkToken, checkUploadPath, async (req, res) => {
         req.userId = data.id;
 
     } catch (err) {
-        //console.log(err);
-        return res.status(500).json({ message: err.response.data || err.message });
+        return sendResponse(res, 401, err.response.data || err.message)
     }
 
     //upload file
@@ -240,140 +284,75 @@ router.post('/:path', checkToken, checkUploadPath, async (req, res) => {
 
     upload(req, res, function (err) {
         if (req.INCORRECT_FORMAT) {
-            return res.status(422).json({
-                "code": 422,
-                "message": "File Format is incorrect"
-            })
+            return sendResponse(res, 422, "File Format is incorrect")
         }
         if (err instanceof multer.MulterError) {
-            return res.status(400).json({
-                "code": 400,
-                "message": "Bad request - upload file not found"
-            })
+            return sendResponse(res, 400, "Bad request - upload file not found")
         }
-
-        //creating new IMG record to JSON file
-        const dir = encodeURIComponent(req.params.path)
-        const file = req.file;
-        var dotIndex = file.filename.lastIndexOf(".");
-        let date = new Date();
-        var newImgRecord = {
-            "path": file.filename,
-            "fullpath": dir + "/" + file.filename,
-            "name": file.filename.substring(0, dotIndex),
-            "modified": date.toISOString()
-        }
-
-        //read from JSON file
-        var rawdata;
-        try {
-            rawdata = fs.readFileSync('./data/galeries.json', 'utf8');
-        } catch (e) {
-            return res.status(500).json({
-                "code": 500,
-                "message": err.message
-            })
-        }
-        data = JSON.parse(rawdata);
-
-        //find gallery and push IMG
-        for (i in data.galleries) {
-            if (data.galleries[i].gallery.path == dir) {
-                data.galleries[i].images.push(newImgRecord);
-                fs.writeFile('./data/galeries.json', JSON.stringify(data), function (err) {
-                    if (err) throw err;
-                })
-                return res.status(201).json({
-                    "uploaded": [newImgRecord]
-                })
-            }
-        }
-
         if (err) {
-            return res.status(500).json({
-                "code": 500,
-                "message": err.message
-            })
+            return sendResponse(res, 500, err.message)
         }
 
-        return res.status(404).json({
-            "code": 404,
-            "message": "Upload gallery not found"
-        })
+        //get data about uploaded img
+        getImagesData(encodeURIComponent(req.params.path), true)
+            .then((imgData) => {
+                return res.status(201).json({
+                    "uploaded": [imgData]
+                })
+            })
+            .catch((err) => {
+                return sendResponse(res, 500, err.message)
+            })
     })
 })
 
 router.delete('/:dir/:img?', (req, res) => {
     try {
-        let rawdata = fs.readFileSync('./data/galeries.json');
-        let data = JSON.parse(rawdata);
         //encode path name
         const dir = encodeURIComponent(req.params.dir)
-
-        //check if exist and encode if yes
         var img = req.params.img;
+
+        //check if exist and encode if yes and delete image form gallery
         if (img) {
             img = encodeURIComponent(img)
-        }
+            var imgPath = "./data/galleries/" + dir + "/" + img
 
-        for (i in data.galleries) {
-            //if dir match
-            if (data.galleries[i].gallery.path == dir) {
-
-                //delete image form gallery
-                if (img && (Object.keys(data.galleries[i].images).length > 0)) {
-
-                    //find position of image and if exist delete
-                    const index = data.galleries[i].images.findIndex(x => x.path === img);
-                    if (index !== -1) {
-                        data.galleries[i].images.splice(index, 1);
-                        fs.writeFileSync('./data/galeries.json', JSON.stringify(data))
-
-                        //asynchronously delete file from filesystem
-                        fs.unlink("./data/galleries/" + dir + "/" + img, (err) => {
-                            if (err) {
-                                throw err;
-                            }
-                        })
-
-                        return res.status(200).json({
-                            "code": 200,
-                            "message": `Image ${dir}/${img} deleted successfully`
-                        })
+            //do not match anything
+            if (!fs.existsSync(imgPath)) {
+                console.log("hladam" + imgPath)
+                return sendResponse(res, 404, "Image not found")
+            }
+            //asynchronously delete file from filesystem
+            else {
+                fs.unlink(imgPath, (err) => {
+                    if (err) {
+                        return sendResponse(res, 500, err.message)
                     }
-                }
-
-                //delete gallery from galleries
-                if (img === undefined) {
-                    data.galleries.splice(i, 1)
-                    fs.writeFileSync('./data/galeries.json', JSON.stringify(data))
-
-                    //asynchronously delete directory recursively from filesystem
-                    fs.rmdir("./data/galleries/" + dir, { recursive: true }, (err) => {
-                        if (err) {
-                            throw err;
-                        }
-                    });
-
-                    return res.status(200).json({
-                        "code": 200,
-                        "message": `Gallery ${dir} deleted successfully`
-                    })
-                }
+                })
+                return sendResponse(res, 200, `Image ${dir}/${img} deleted successfully`)
             }
         }
-        let path = img === undefined ? dir : `${dir}/${img}`
-        //do not match anything
-        return res.status(404).json({
-            "code": 404,
-            "message": `The selected ${path} does not exist`
-        })
+
+        //delete gallery from galleries
+        if (img === undefined) {
+            var dirPath = `./data/galleries/${dir}/`;
+
+            //do not match anything
+            if (!fs.existsSync(dirPath)) {
+                return sendResponse(res, 404, "Gallery not found")
+            }
+
+            //asynchronously delete directory recursively from filesystem
+            fs.rmdir(dirPath, { recursive: true }, (err) => {
+                if (err) {
+                    throw err;
+                }
+            });
+            return sendResponse(res, 200, `Gallery ${dir} deleted successfully`)
+        }
     }
     catch (e) {
-        return res.status(500).json({
-            "code": 500,
-            "message": e.message
-        })
+        return sendResponse(res, 500, e.message)
     }
 })
 
