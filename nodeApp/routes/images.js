@@ -20,24 +20,26 @@ const getValues = (params) => {
     };
 }
 
+var sendResponse = (res,code, message) => {
+    var response = {
+        "code": code,
+        "message": message
+    }
+    return res.status(ParseInt(code)).json(response);
+}
+
 router.get('/:params/:dir/:img', async (req, res) => {
     const { params, dir, img } = req.params
 
     //validate width and height of required picture
     if (!validateImgParams(params)) {
-        return res.status(403).json({
-            "code": 403,
-            "message": "Incorrectly entered required image dimensions"
-        })
+        return sendResponse(res,403,"Incorrectly entered required image dimensions")
     }
 
     //check if file exist
     const path = `./data/galleries/${encodeURIComponent(dir)}/${img}`;
     if (!fs.existsSync(path)) {
-        return res.status(404).json({
-            "code": 404,
-            "message": "Image not found"
-        })
+        return sendResponse(res,404, "Image not found")
     }
 
     //extract width and height from params
@@ -58,10 +60,7 @@ router.get('/:params/:dir/:img', async (req, res) => {
             data = await sharp(path).resize(w, h)
         }
     } catch (e) {
-        return res.status(500).json({
-            "code": 500,
-            "message": " Failed to process image and generate preview."
-        })
+        return sendResponse(res,500, "Failed to process image and generate preview.")
     }
 
     //send resized image
@@ -71,10 +70,7 @@ router.get('/:params/:dir/:img', async (req, res) => {
             res.end(data, 'Base64');
         })
         .catch(e => {
-            return res.status(500).json({
-                "code": 500,
-                "message": e.message
-            })
+            return sendResponse(res,500, e.message)
         })
 })
 
