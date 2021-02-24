@@ -15,7 +15,7 @@ To get the Node server running locally:
 - `app.js` - The entry point to application. This file defines our express server. It also requires the routes and models we'll be using in the application.
 - `routes/` - This folder contains the route definitions for our API.
 - `schemas/` - This folder contains the JSON schema definitions for validator.
-- `data/` - This folder contains stored data and also a JSON file with information about stored galleries and images
+- `data/` - This folder contains stored data
 - `view/`- This folder contains an html file serving to display the generated token during FB authentication
 
 ## Supported requests:
